@@ -58,12 +58,14 @@ write.csv(results_all, file = "LUAD_IOBR_signature_scan_results.csv", quote = FA
 
 result_sig = br_get_results(result, tidy = TRUE, p.value < 0.05 & Focal_variable == term)
 top_risk = result_sig |>
-  filter(estimate > 1 & estimate < 200) |>
+  #filter(estimate > 1 & estimate < 200) |>
+  filter(estimate > 1) |>
   slice_min(p.value, n = 5) |>
   pull(term)
 
 top_prot = result_sig |>
-  filter(estimate < 1 & estimate > 0.05) |>
+  #filter(estimate < 1 & estimate > 0.05) |>
+  filter(estimate < 1) |>
   slice_min(p.value, n = 5) |>
   pull(term)
 
@@ -73,11 +75,18 @@ br_show_forest(
 )
 #debug(br_show_forest)
 
+
+devtools::load_all("../bregr")
+debug(br_show_forest)
+
 p1 = br_show_forest(
   result, rm_controls = TRUE,
   subset = term %in% c(top_risk, top_prot),
-  drop = c(1, 3)
+  drop = c(1, 3),
+  log_first = TRUE
+  #ticks_at = c(0.001, 1, 10, 1e8),
 )
+p1
 
 ggplot2::ggsave(filename = "p1.pdf", plot = p1,
                 #dpi = 300,

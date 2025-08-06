@@ -1,0 +1,85 @@
+---
+title: "Benchmark"
+author: 
+  - name: Shixiang Wang
+    affiliation: Central South University
+    email: wangshx@csu.edu.cn
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Benchmark}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(bregr)
+library(microbenchmark)
+```
+
+## Generate Simulated Data
+
+```{r}
+set.seed(2025L)
+data = matrix(
+  rnorm(1e6), ncol = 1e3, 
+  dimnames = list(NULL, paste0("var", 1:1e3))) |>
+  as.data.frame()
+data$y = rnorm(1e3)
+```
+
+## Functions
+
+```{r}
+lm_batch_bregr = function(data, cores = 1L) {
+  br_pipeline(
+    data = data,
+    y = "y",
+    x = setdiff(colnames(data), "y"), 
+    method = "lm", run_parallel = cores
+  )
+}
+
+lm_batch_for = function(data) {
+  mods = list()
+  mod_rv_list = list()
+  xs = setdiff(colnames(data), "y")
+  for (x in xs) {
+    mod = lm(as.formula(glue::glue("y ~ {x}", x = x)), data = data)
+    mods[[x]] = mod
+    mod_rv_list[[x]] = broom.helpers::tidy_plus_plus(mod)
+  }
+  names(mod_rv_list) = xs
+  tidy_data = dplyr::bind_rows(mod_rv_list, .id = "Focal_variable")
+  
+  list(
+    models = mods,
+    tidy_data = tidy_data
+  )
+}
+```
+
+
+## Benchmark
+
+```{r}
+ev = microbenchmark(
+  batch_lm_bregr = lm_batch_bregr(data),
+  batch_lm_bregr_parallel = lm_batch_bregr(data, cores = 4),
+  batch_lm_for = lm_batch_for(data)
+)
+```
+
+```{r}
+plot(ev)
+```
+
+
+

@@ -15,7 +15,8 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  out.width = "100%"
 )
 ```
 
@@ -35,6 +36,13 @@ data = matrix(
 data$y = rnorm(1e3)
 ```
 
+```{r}
+sample_data = function(data, n) {
+  data[, c(seq_len(n), ncol(data))]
+}
+```
+
+
 ## Functions
 
 ```{r}
@@ -47,21 +55,38 @@ lm_batch_bregr = function(data, cores = 1L) {
   )
 }
 
+lm_batch_bregr_save = function(data, cores = 1L) {
+  options(bregr.save_model = TRUE)
+  # save model files to different path,
+  # if tempdir() used, all models in different runs will be save to same dir
+  # it may cause some issues
+  options(bregr.path = tempfile())
+  on.exit(options(bregr.save_model = FALSE))
+  
+  lm_batch_bregr(data, cores)
+}
+
 lm_batch_for = function(data) {
   mods = list()
   mod_rv_list = list()
+  mod_rv_list2 = list()
   xs = setdiff(colnames(data), "y")
   for (x in xs) {
     mod = lm(as.formula(glue::glue("y ~ {x}", x = x)), data = data)
     mods[[x]] = mod
     mod_rv_list[[x]] = broom.helpers::tidy_plus_plus(mod)
+    mod_rv_list2[[x]] = broom::tidy(mod)
   }
   names(mod_rv_list) = xs
-  tidy_data = dplyr::bind_rows(mod_rv_list, .id = "Focal_variable")
+  results = dplyr::bind_rows(mod_rv_list, .id = "Focal_variable")
+  
+  names(mod_rv_list2) = xs
+  tidy_results = dplyr::bind_rows(mod_rv_list2, .id = "Focal_variable")
   
   list(
     models = mods,
-    tidy_data = tidy_data
+    results = results,
+    tidy_results = tidy_results
   )
 }
 ```
@@ -69,17 +94,54 @@ lm_batch_for = function(data) {
 
 ## Benchmark
 
-```{r}
+```{r eval=FALSE}
 ev = microbenchmark(
-  batch_lm_bregr = lm_batch_bregr(data),
-  batch_lm_bregr_parallel = lm_batch_bregr(data, cores = 4),
-  batch_lm_for = lm_batch_for(data)
+  batch_lm_bregr_10 = lm_batch_bregr(sample_data(data, 10)),
+  batch_lm_bregr_parallel_10 = lm_batch_bregr(sample_data(data, 10), cores = 4),
+  batch_lm_bregr_save_10 = lm_batch_bregr_save(sample_data(data, 10)),
+  batch_lm_bregr_save_parallel_10 = lm_batch_bregr_save(sample_data(data, 10), cores = 4),
+  batch_lm_for_10 = lm_batch_for(sample_data(data, 10)),
+  
+  batch_lm_bregr_50 = lm_batch_bregr(sample_data(data, 50)),
+  batch_lm_bregr_parallel_50 = lm_batch_bregr(sample_data(data, 50), cores = 4),
+  batch_lm_bregr_save_50 = lm_batch_bregr_save(sample_data(data, 50)),
+  batch_lm_bregr_save_parallel_50 = lm_batch_bregr_save(sample_data(data, 50), cores = 4),
+  batch_lm_for_50 = lm_batch_for(sample_data(data, 50)),
+  
+  batch_lm_bregr_250 = lm_batch_bregr(sample_data(data, 250)),
+  batch_lm_bregr_parallel_250 = lm_batch_bregr(sample_data(data, 250), cores = 4),
+  batch_lm_bregr_save_250 = lm_batch_bregr_save(sample_data(data, 250)),
+  batch_lm_bregr_save_parallel_250 = lm_batch_bregr_save(sample_data(data, 250), cores = 4),
+  batch_lm_for_250 = lm_batch_for(sample_data(data, 250)),
+  
+  
+  batch_lm_bregr_1000 = lm_batch_bregr(sample_data(data, 1000)),
+  batch_lm_bregr_parallel_1000 = lm_batch_bregr(sample_data(data, 1000), cores = 4),
+  batch_lm_bregr_save_1000 = lm_batch_bregr_save(sample_data(data, 1000)),
+  batch_lm_bregr_save_parallel_1000 = lm_batch_bregr_save(sample_data(data, 1000), cores = 4),
+  batch_lm_for_1000 = lm_batch_for(sample_data(data, 1000)),
+  
+  times = 20
+) |> 
+  suppressMessages() |> 
+  suppressWarnings()
+
+saveRDS(ev, file = "benchmark.rds")
+```
+
+```{r, include=FALSE}
+ev = readRDS("benchmark.rds")
+```
+
+
+```{r, fig.width=7, fig.height=7, fig.dpi=300}
+p = ggplot2::autoplot(ev)
+p
+```
+```{r}
+ggplot2::ggsave(
+  "benchmark_lm.pdf", plot = p,
+  width = 7, height = 7
 )
 ```
-
-```{r}
-plot(ev)
-```
-
-
 

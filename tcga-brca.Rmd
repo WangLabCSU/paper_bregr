@@ -1,0 +1,112 @@
+---
+title: "TCGA-BRCA Gene Expression Analysis with bregr"
+author: 
+  - name: Shixiang Wang
+    affiliation: Central South University
+    email: wangshx@csu.edu.cn
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Benchmark}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  out.width = "100%"
+)
+```
+
+```{r setup}
+library(bregr)
+library(UCSCXenaTools)
+library(UCSCXenaShiny)
+```
+
+## Download Data
+
+```{r}
+XenaGenerate() |>
+  XenaFilter(filterDatasets = "TCGA.BRCA.sampleMap/HiSeqV2_PANCAN")
+```
+
+```{r eval=FALSE}
+XenaGenerate() |>
+  XenaFilter(filterDatasets = "TCGA.BRCA.sampleMap/HiSeqV2_PANCAN") |> 
+  XenaQuery() |> 
+  XenaDownload(destdir = "")
+```
+
+## Preprocessing Data
+
+```{r}
+data = XenaPrepare("HiSeqV2_PANCAN.gz")
+head(data)
+```
+
+Firstly, we need to convert genes to columns.
+
+```{r}
+data_t = tidyr::pivot_longer(data, cols = colnames(data)[-1]) |> 
+  tidyr::pivot_wider(id_cols = "name", names_from = "sample", values_from = "value", values_fill = NA_real_)
+head(data_t)
+```
+
+Next join the overall survival data.
+
+```{r}
+data2 = dplyr::inner_join(
+  tcga_surv |> dplyr::select(sample, OS, OS.time) |> 
+    dplyr::filter(!is.na(OS), !is.na(OS.time)),
+  data_t, by = c("sample" = "name")
+)
+head(data2)
+```
+
+So we next run **bregr** with `r nrow(data2)` samples, `r ncol(data2)-3` variables.
+
+## Execute bregr Pipeline
+
+```{r}
+gene_names = names(data_t)[-1]
+```
+
+
+With parallel computation:
+
+```{r}
+options(future.globals.maxSize = Inf)
+result1 = system.time(
+  br_pipeline(
+    data2,
+    y = c("OS.time", "OS"),
+    x = gene_names, 
+    method = "coxph",
+    run_parallel = 6L
+  )
+)
+```
+
+
+Without parallel computation:
+
+```{r}
+devtools::load_all("../bregr")
+result2 = system.time(
+  br_pipeline(
+    data2[, c("OS.time", "OS", "?|100133144")],
+    y = c("OS.time", "OS"),
+    x = "?|100133144", 
+    method = "coxph"
+  )
+)
+```
+
+
+```{r}
+all.equal(result1, result2)
+```
+

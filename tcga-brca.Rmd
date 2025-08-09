@@ -7,7 +7,7 @@ author:
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Benchmark}
+  %\VignetteIndexEntry{TCGA-BRCA Gene Expression Analysis with bregr}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -21,6 +21,8 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
+#remotes::install_github("wanglabcsu/bregr", dependencies = TRUE)
+
 library(bregr)
 library(UCSCXenaTools)
 library(UCSCXenaShiny)
@@ -44,7 +46,7 @@ XenaGenerate() |>
 
 ```{r}
 data = XenaPrepare("HiSeqV2_PANCAN.gz")
-head(data)
+head(data[, 1:10])
 ```
 
 Firstly, we need to convert genes to columns.
@@ -52,7 +54,7 @@ Firstly, we need to convert genes to columns.
 ```{r}
 data_t = tidyr::pivot_longer(data, cols = colnames(data)[-1]) |> 
   tidyr::pivot_wider(id_cols = "name", names_from = "sample", values_from = "value", values_fill = NA_real_)
-head(data_t)
+head(data_t[, 1:10])
 ```
 
 Next join the overall survival data.
@@ -63,7 +65,7 @@ data2 = dplyr::inner_join(
     dplyr::filter(!is.na(OS), !is.na(OS.time)),
   data_t, by = c("sample" = "name")
 )
-head(data2)
+head(data2[, 1:10])
 ```
 
 So we next run **bregr** with `r nrow(data2)` samples, `r ncol(data2)-3` variables.
@@ -72,21 +74,26 @@ So we next run **bregr** with `r nrow(data2)` samples, `r ncol(data2)-3` variabl
 
 ```{r}
 gene_names = names(data_t)[-1]
+
+options(
+  bregr.save_model = TRUE,
+  bregr.path = "./bregr_models"
+)
 ```
 
 
 With parallel computation:
 
 ```{r}
-options(future.globals.maxSize = Inf)
-result1 = system.time(
+system.time(
   br_pipeline(
     data2,
     y = c("OS.time", "OS"),
     x = gene_names, 
     method = "coxph",
-    run_parallel = 6L
-  )
+    run_parallel = 40
+  ) |>
+    suppressWarnings()
 )
 ```
 
@@ -94,19 +101,15 @@ result1 = system.time(
 Without parallel computation:
 
 ```{r}
-devtools::load_all("../bregr")
-result2 = system.time(
+system.time(
   br_pipeline(
-    data2[, c("OS.time", "OS", "?|100133144")],
+    data2,
     y = c("OS.time", "OS"),
-    x = "?|100133144", 
+    x = gene_names, 
     method = "coxph"
-  )
+  ) |>
+    suppressWarnings()
 )
 ```
 
-
-```{r}
-all.equal(result1, result2)
-```
 

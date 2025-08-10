@@ -30,10 +30,10 @@ library(microbenchmark)
 ```{r}
 set.seed(2025L)
 data = matrix(
-  rnorm(1e6), ncol = 1e3, 
+  rnorm(1e7), ncol = 1e3, 
   dimnames = list(NULL, paste0("var", 1:1e3))) |>
   as.data.frame()
-data$y = rnorm(1e3)
+data$y = rnorm(1e4)
 ```
 
 ```{r}
@@ -46,24 +46,28 @@ sample_data = function(data, n) {
 ## Functions
 
 ```{r}
-lm_batch_bregr = function(data, cores = 1L) {
+lm_batch_bregr = function(data, n_workers = 1L) {
   br_pipeline(
     data = data,
     y = "y",
     x = setdiff(colnames(data), "y"), 
-    method = "lm", run_parallel = cores
+    method = "lm", run_parallel = n_workers
   )
 }
 
-lm_batch_bregr_save = function(data, cores = 1L) {
+lm_batch_bregr_save = function(data, n_workers = 1L) {
   options(bregr.save_model = TRUE)
   # save model files to different path,
   # if tempdir() used, all models in different runs will be save to same dir
   # it may cause some issues
-  options(bregr.path = tempfile())
-  on.exit(options(bregr.save_model = FALSE))
+  temp_path = tempfile()
+  options(bregr.path = temp_path)
+  on.exit({
+    options(bregr.save_model = FALSE)
+    fs::dir_delete(temp_path)
+  })
   
-  lm_batch_bregr(data, cores)
+  lm_batch_bregr(data, n_workers)
 }
 
 lm_batch_for = function(data) {
@@ -94,31 +98,31 @@ lm_batch_for = function(data) {
 
 ## Benchmark
 
-```{r eval=FALSE}
+```{r eval=TRUE}
 ev = microbenchmark(
   batch_lm_bregr_10 = lm_batch_bregr(sample_data(data, 10)),
-  batch_lm_bregr_parallel_10 = lm_batch_bregr(sample_data(data, 10), cores = 4),
+  batch_lm_bregr_parallel_10 = lm_batch_bregr(sample_data(data, 10), n_workers = 20),
   batch_lm_bregr_save_10 = lm_batch_bregr_save(sample_data(data, 10)),
-  batch_lm_bregr_save_parallel_10 = lm_batch_bregr_save(sample_data(data, 10), cores = 4),
+  batch_lm_bregr_save_parallel_10 = lm_batch_bregr_save(sample_data(data, 10), n_workers = 20),
   batch_lm_for_10 = lm_batch_for(sample_data(data, 10)),
   
   batch_lm_bregr_50 = lm_batch_bregr(sample_data(data, 50)),
-  batch_lm_bregr_parallel_50 = lm_batch_bregr(sample_data(data, 50), cores = 4),
+  batch_lm_bregr_parallel_50 = lm_batch_bregr(sample_data(data, 50), n_workers = 20),
   batch_lm_bregr_save_50 = lm_batch_bregr_save(sample_data(data, 50)),
-  batch_lm_bregr_save_parallel_50 = lm_batch_bregr_save(sample_data(data, 50), cores = 4),
+  batch_lm_bregr_save_parallel_50 = lm_batch_bregr_save(sample_data(data, 50), n_workers = 20),
   batch_lm_for_50 = lm_batch_for(sample_data(data, 50)),
   
   batch_lm_bregr_250 = lm_batch_bregr(sample_data(data, 250)),
-  batch_lm_bregr_parallel_250 = lm_batch_bregr(sample_data(data, 250), cores = 4),
+  batch_lm_bregr_parallel_250 = lm_batch_bregr(sample_data(data, 250), n_workers = 20),
   batch_lm_bregr_save_250 = lm_batch_bregr_save(sample_data(data, 250)),
-  batch_lm_bregr_save_parallel_250 = lm_batch_bregr_save(sample_data(data, 250), cores = 4),
+  batch_lm_bregr_save_parallel_250 = lm_batch_bregr_save(sample_data(data, 250), n_workers = 20),
   batch_lm_for_250 = lm_batch_for(sample_data(data, 250)),
   
   
   batch_lm_bregr_1000 = lm_batch_bregr(sample_data(data, 1000)),
-  batch_lm_bregr_parallel_1000 = lm_batch_bregr(sample_data(data, 1000), cores = 4),
+  batch_lm_bregr_parallel_1000 = lm_batch_bregr(sample_data(data, 1000), n_workers = 20),
   batch_lm_bregr_save_1000 = lm_batch_bregr_save(sample_data(data, 1000)),
-  batch_lm_bregr_save_parallel_1000 = lm_batch_bregr_save(sample_data(data, 1000), cores = 4),
+  batch_lm_bregr_save_parallel_1000 = lm_batch_bregr_save(sample_data(data, 1000), n_workers = 20),
   batch_lm_for_1000 = lm_batch_for(sample_data(data, 1000)),
   
   times = 20

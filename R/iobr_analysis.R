@@ -49,7 +49,7 @@ result = br_pipeline(
   method = "coxph"
 )
 
-View(result@results_tidy)
+#View(result@results_tidy)
 br_get_results(result, tidy = TRUE, p.value < 0.05)
 br_get_results(result, tidy = TRUE, p.value < 0.05 & Focal_variable == term) |> View()
 
@@ -73,11 +73,9 @@ top_prot = result_sig |>
 br_show_forest(
   result, rm_controls = TRUE, subset = p.value < 0.05
 )
+
+#devtools::load_all("../bregr")
 #debug(br_show_forest)
-
-
-devtools::load_all("../bregr")
-debug(br_show_forest)
 
 p1 = br_show_forest(
   result, rm_controls = TRUE,
@@ -93,9 +91,9 @@ ggplot2::ggsave(filename = "p1.pdf", plot = p1,
                 width = 9, height = 4, units = "in")
 
 p2 = br_show_forest_ggstats(
-  result, idx = top_risk[1]
+  result, idx = "Winter_hypoxia_signature"
 )
-
+p2
 ggplot2::ggsave(filename = "p2.pdf", plot = p2,
                 width = 7, height = 3.5, units = "in")
 
@@ -120,26 +118,22 @@ br_show_table(result, term %in% c(top_risk, top_prot),
 
 br_show_table_gt(result, idx = c(top_risk, top_prot))
 
-tb1 = br_show_table_gt(result, idx = top_risk[1]) |>
+tb1 = br_show_table_gt(result, idx = "Winter_hypoxia_signature") |>
   gtsummary::add_n()
 
 tb1 |>
   gtsummary::as_gt() |>
   gt::gtsave(filename = "p2_table.png")
 
+br_get_results(result)
 
-br_show_forest(
-  result, rm_controls = TRUE,
-  subset = term %in% c(top_risk, top_prot),
-  xlim = c(0, 100)
-)
-
-br_show_forest(
-  result, rm_controls = TRUE, subset = p.value < 0.05 & estimate > 1,
-  drop = c(2, 3)
-)
-br_show_forest(
-  result, rm_controls = TRUE, subset = p.value < 0.05 & estimate < 1,
-  drop = c(2, 3)
-)
-
+devtools::load_all("../bregr/")
+#undebug(br_show_risk_network)
+c(top_risk, top_prot)
+p = br_show_risk_network(result,
+                         Focal_variable %in% c(top_risk, top_prot)) +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 8),
+                 axis.text.x = element_text(angle = 5))
+p
+ggplot2::ggsave(filename = "p_risk_network.pdf", plot = p,
+                width = 9, height = 9, units = "in")

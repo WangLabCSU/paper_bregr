@@ -6,7 +6,7 @@ library(UCSCXenaShiny)
 library(data.table)
 library(dplyr)
 
-data_path = "/Users/wsx/Nutstore Files/舒晨阳/回归分析可视化项目/reg_project/data"
+data_path = "R/"
 
 dir(data_path)
 
